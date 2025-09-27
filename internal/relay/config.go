@@ -47,7 +47,7 @@ type Config struct {
 	// Timeouts and limits
 	IdleTimeout       Duration `json:"idle_timeout"`        // Default: 30s
 	MaxConcurrentConn int      `json:"max_concurrent_conn"` // Default: 1000
-	RequestTimeout    Duration `json:"request_timeout"`     // Default: 30s
+	RequestTimeout    Duration `json:"request_timeout"`     // Default: 5m (for large file transfers)
 
 	// Monitoring
 	MetricsAddr string `json:"metrics_addr,omitempty"` // e.g., ":8080" for metrics endpoint
@@ -96,7 +96,7 @@ func LoadConfig(path string) (*Config, error) {
 		config.MaxConcurrentConn = 1000
 	}
 	if config.RequestTimeout == 0 {
-		config.RequestTimeout = Duration(30 * time.Second)
+		config.RequestTimeout = Duration(5 * time.Minute)
 	}
 
 	// Load hospitals from environment variables or separate file

@@ -2,6 +2,7 @@ package relay
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -386,6 +387,10 @@ func (s *WebSocketServer) forwardRequest(w http.ResponseWriter, r *http.Request,
 	conn := agent.Conn
 	agent.Mutex.RUnlock()
 
+	deadline := time.Now().Add(time.Duration(s.config.RequestTimeout))
+	conn.SetReadDeadline(deadline)
+	conn.SetWriteDeadline(deadline)
+
 	// Serialize HTTP request
 	var reqBuf strings.Builder
 	reqBuf.WriteString(fmt.Sprintf("%s %s %s\r\n", r.Method, r.RequestURI, r.Proto))
@@ -414,32 +419,50 @@ func (s *WebSocketServer) forwardRequest(w http.ResponseWriter, r *http.Request,
 		}
 	}
 
-	// Read response from WebSocket
+	// Read response headers (first message)
 	_, respData, err := conn.ReadMessage()
 	if err != nil {
-		return fmt.Errorf("failed to read response: %w", err)
+		return fmt.Errorf("failed to read response headers: %w", err)
 	}
 
-	// Parse HTTP response
-	resp, err := http.ReadResponse(bufio.NewReader(strings.NewReader(string(respData))), r)
+	// Parse HTTP response headers
+	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(respData)), r)
 	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
-	defer resp.Body.Close()
 
-	// Copy response headers
+	// Copy response headers to client
 	for key, values := range resp.Header {
 		for _, value := range values {
 			w.Header().Add(key, value)
 		}
 	}
-
-	// Write status code
 	w.WriteHeader(resp.StatusCode)
 
-	// Copy response body
-	_, err = io.Copy(w, resp.Body)
-	return err
+	// Stream body chunks to client
+	for {
+		_, chunk, err := conn.ReadMessage()
+		if err != nil {
+			return fmt.Errorf("failed to read chunk: %w", err)
+		}
+
+		// Empty message signals end
+		if len(chunk) == 0 {
+			break
+		}
+
+		// Write chunk to client
+		if _, err := w.Write(chunk); err != nil {
+			return fmt.Errorf("failed to write chunk to client: %w", err)
+		}
+
+		// Flush to ensure progressive download
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
+	}
+
+	return nil
 }
 
 func (s *WebSocketServer) getHospitalToken(code, subdomain string) (string, bool) {
