@@ -36,9 +36,9 @@ spec:
         - name: http
           containerPort: 80
           protocol: TCP
-        - name: quic
+        - name: https
           containerPort: 443
-          protocol: UDP
+          protocol: TCP
         - name: metrics
           containerPort: 8080
           protocol: TCP

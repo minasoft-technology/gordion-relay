@@ -65,8 +65,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create and start relay server
-	server := relay.NewServer(cfg, logger)
+	// Create and start relay server (WebSocket-based)
+	server := relay.NewWebSocketServer(cfg, logger)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

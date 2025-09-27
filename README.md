@@ -5,15 +5,16 @@ A reverse tunnel relay server that allows hospitals to serve DICOM files through
 ## Architecture
 
 ```
-External User → hospital.domain.com → Relay Server → QUIC Tunnel → Hospital → Gordionedge
+External User → hospital.domain.com → Relay Server → HTTPS/WebSocket Tunnel → Hospital → Gordionedge
 ```
 
 ### How it works:
 
 1. **DNS Setup**: Wildcard DNS `*.zenpacs.com.tr` points to the relay server
 2. **Hospital Agents**: Each hospital runs gordionedge with tunnel agent enabled
-3. **Outbound Tunnels**: Hospital agents connect outbound to relay (no firewall changes needed)
+3. **Outbound Tunnels**: Hospital agents connect outbound via HTTPS/WebSocket to relay (no firewall changes needed)
 4. **Request Routing**: Relay routes requests based on subdomain to the correct hospital tunnel
+5. **Firewall Friendly**: Uses standard HTTPS port 443 TCP - works through any firewall
 
 ## Configuration
 
@@ -161,10 +162,11 @@ Response:
 
 ## Security
 
-- **TLS Encryption**: All tunnel traffic is encrypted with TLS
-- **Hospital Authentication**: Hospitals must register with valid subdomain
-- **No Inbound Ports**: Hospitals only make outbound connections
+- **TLS Encryption**: All tunnel traffic is encrypted with HTTPS/TLS
+- **Hospital Authentication**: Token-based authentication per hospital
+- **No Inbound Ports**: Hospitals only make outbound HTTPS connections
 - **Request Validation**: Relay validates subdomain ownership
+- **Rate Limiting**: Protection against brute force attacks (5 attempts/15min)
 
 ## Troubleshooting
 
@@ -196,6 +198,7 @@ Response:
 
 ## Performance
 
-- **QUIC Protocol**: Multiplexed connections reduce latency
-- **Connection Pooling**: Persistent tunnels avoid connection overhead
+- **HTTPS/WebSocket**: Persistent bidirectional tunnels
+- **Connection Pooling**: Long-lived connections avoid handshake overhead
 - **Streaming**: Large DICOM files stream efficiently through tunnels
+- **Firewall Compatible**: TCP port 443 works everywhere (no UDP issues)

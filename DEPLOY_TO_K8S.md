@@ -4,10 +4,12 @@
 
 ## Prerequisites
 
-1. Kubernetes cluster running
+1. Kubernetes cluster running (VMware, AWS, GCP, Azure - any K8s works!)
 2. `kubectl` configured to access your cluster
 3. DNS wildcard record: `*.zenpacs.com.tr` → LoadBalancer IP (will get after deployment)
 4. Hospital tokens generated (see below)
+
+**Note**: Uses standard HTTPS/TCP - no UDP/QUIC complexity!
 
 ## Quick Deploy
 

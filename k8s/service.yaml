@@ -6,10 +6,6 @@ metadata:
   labels:
     app: gordion-relay
   annotations:
-    # Cloud provider specific annotations
-    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"  # AWS Network Load Balancer for UDP
-    service.beta.kubernetes.io/azure-load-balancer-resource-group: "zenpacs-rg"  # Azure
-    cloud.google.com/load-balancer-type: "External"  # GCP
     # Preserve source IP for rate limiting
     service.beta.kubernetes.io/external-traffic: "OnlyLocal"
 spec:
@@ -26,10 +22,10 @@ spec:
     port: 80
     targetPort: 80
     protocol: TCP
-  - name: quic
+  - name: https
     port: 443
     targetPort: 443
-    protocol: UDP  # Critical: QUIC is UDP only
+    protocol: TCP  # HTTPS/WebSocket tunnel
   - name: metrics
     port: 8080
     targetPort: 8080
