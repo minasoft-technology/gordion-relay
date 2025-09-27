@@ -454,11 +454,23 @@ func (s *WebSocketServer) forwardRequest(w http.ResponseWriter, r *http.Request,
 		}
 	}
 
-	// Read response headers (first message)
+	// Read response headers (first message) - skip heartbeat messages
 	s.logger.Debug("Waiting for response headers from agent")
-	_, respData, err := conn.ReadMessage()
-	if err != nil {
-		return fmt.Errorf("failed to read response headers: %w", err)
+	var respData []byte
+	for {
+		_, data, err := conn.ReadMessage()
+		if err != nil {
+			return fmt.Errorf("failed to read response headers: %w", err)
+		}
+
+		// Skip heartbeat messages
+		if string(data) == "HEARTBEAT" {
+			s.logger.Debug("Skipping heartbeat message")
+			continue
+		}
+
+		respData = data
+		break
 	}
 	s.logger.Debug("Received response headers from agent", "response_size", len(respData))
 
@@ -481,6 +493,12 @@ func (s *WebSocketServer) forwardRequest(w http.ResponseWriter, r *http.Request,
 		_, chunk, err := conn.ReadMessage()
 		if err != nil {
 			return fmt.Errorf("failed to read chunk: %w", err)
+		}
+
+		// Skip heartbeat messages
+		if string(chunk) == "HEARTBEAT" {
+			s.logger.Debug("Skipping heartbeat message in body")
+			continue
 		}
 
 		// Empty message signals end
