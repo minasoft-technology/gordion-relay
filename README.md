@@ -92,12 +92,17 @@ docker-compose up -d
 ### Kubernetes
 
 ```bash
-# Apply deployment
-kubectl apply -f kubernetes/deployment.yaml
+# Apply all manifests (see DEPLOY_TO_K8S.md for detailed instructions)
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/pvc-certs.yaml
+kubectl apply -f k8s/secret-example.yaml
+kubectl apply -f k8s/configmap.yaml
+kubectl apply -f k8s/deployment.yaml
+kubectl apply -f k8s/service.yaml
 
 # Check status
-kubectl get pods -l app=gordion-relay
-kubectl get svc gordion-relay-service
+kubectl get pods -n gordion-relay
+kubectl get svc -n gordion-relay
 ```
 
 ### Manual Deployment

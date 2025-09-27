@@ -144,7 +144,8 @@ spec:
         secret:
           secretName: gordion-relay-tokens
       - name: certs
-        emptyDir: {}
+        persistentVolumeClaim:
+          claimName: gordion-relay-certs
       # DNS configuration for proper resolution
       dnsPolicy: ClusterFirst
       restartPolicy: Always

@@ -17,16 +17,19 @@
 # 1. Create namespace
 kubectl apply -f k8s/namespace.yaml
 
-# 2. Apply secret with real tokens (IMPORTANT!)
+# 2. Create PersistentVolumeClaim for Let's Encrypt certs
+kubectl apply -f k8s/pvc-certs.yaml
+
+# 3. Apply secret with real tokens (IMPORTANT!)
 kubectl apply -f k8s/secret-example.yaml
 
-# 3. Apply config
+# 4. Apply config
 kubectl apply -f k8s/configmap.yaml
 
-# 4. Deploy relay
+# 5. Deploy relay
 kubectl apply -f k8s/deployment.yaml
 
-# 5. Create service (LoadBalancer)
+# 6. Create service (LoadBalancer)
 kubectl apply -f k8s/service.yaml
 
 # Done! All essential components deployed
@@ -53,6 +56,24 @@ kubectl apply -f k8s/namespace.yaml
 
 # Verify
 kubectl get namespace gordion-relay
+```
+
+### Step 2.5: Create PersistentVolumeClaim for Let's Encrypt Certificates
+
+**Why**: Certs are cached to avoid Let's Encrypt rate limits (50 certs/week/domain)
+
+```bash
+kubectl apply -f k8s/pvc-certs.yaml
+
+# Verify
+kubectl get pvc -n gordion-relay
+# Should show: gordion-relay-certs   Bound   ...   1Gi
+```
+
+**Note**: If PVC stays in `Pending` state, check if your cluster has a default StorageClass:
+```bash
+kubectl get storageclass
+# If none exists or none is marked (default), edit pvc-certs.yaml and uncomment storageClassName
 ```
 
 ### Step 3: Configure Secrets
@@ -357,13 +378,14 @@ kubectl delete namespace gordion-relay
 
 ## Production Considerations
 
-1. **Persistent Storage**: Consider using PersistentVolume for Let's Encrypt certs instead of emptyDir
-2. **Multiple Replicas**: Limited to 3 due to QUIC connection affinity
+1. **Persistent Storage**: ✅ Using PersistentVolumeClaim for Let's Encrypt certs (prevents rate limit issues)
+2. **Multiple Replicas**: Can scale up to handle more hospitals, session affinity ensures WebSocket persistence
 3. **Backup Tokens**: Store tokens in secure vault (HashiCorp Vault, AWS Secrets Manager)
 4. **Monitoring**: Set up Prometheus alerts for disconnected hospitals
 5. **DNS**: Ensure DNS has low TTL (300s) for quick failover
-6. **Load Balancer**: Use Network Load Balancer (not Classic) for UDP support
+6. **Load Balancer**: Any TCP load balancer works (no UDP needed for WebSocket)
 7. **SSL Certificates**: Monitor expiration, Let's Encrypt auto-renews every 60 days
+8. **StorageClass**: Ensure your cluster has a StorageClass for PVC provisioning
 
 ## Summary
 
@@ -372,5 +394,7 @@ kubectl delete namespace gordion-relay
 - Removed `runAsUser` security context (scratch image compatible)
 - Updated image to `ghcr.io/minasoft-technology/gordion-relay:main`
 - Generated real secure tokens for hospitals
+- Added PersistentVolumeClaim for Let's Encrypt cert persistence
+- Migrated from QUIC/UDP to WebSocket/TCP (100% firewall compatible)
 
 The deployment is **production-ready**!
