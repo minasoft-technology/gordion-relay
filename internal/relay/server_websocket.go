@@ -71,6 +71,7 @@ func NewWebSocketServer(config *Config, logger *slog.Logger) *WebSocketServer {
 			CheckOrigin: func(r *http.Request) bool {
 				return true // Allow all origins for tunnel connections
 			},
+			EnableCompression: false,
 		},
 	}
 }
