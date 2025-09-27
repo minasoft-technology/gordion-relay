@@ -43,6 +43,13 @@ type WebSocketServer struct {
 	runMutex sync.RWMutex
 }
 
+// authAttempts tracks failed authentication attempts for rate limiting
+type authAttempts struct {
+	Count        int
+	LastAttempt  time.Time
+	BlockedUntil time.Time
+}
+
 // WSAgentConnection represents a WebSocket connection from a hospital agent
 type WSAgentConnection struct {
 	HospitalCode string
