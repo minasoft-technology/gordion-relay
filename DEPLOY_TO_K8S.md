@@ -102,6 +102,16 @@ envsubst < k8s/secret.yaml | kubectl apply -f -
 
 ### Step 4: Apply Configuration
 
+**IMPORTANT**: Edit `k8s/configmap.yaml` and update the email address:
+```json
+"tls": {
+  "auto_cert": true,
+  "acme_email": "ops@minasoft.com.tr"  // ← Change to your email
+}
+```
+
+This email receives Let's Encrypt expiration notices and security alerts.
+
 ```bash
 kubectl apply -f k8s/configmap.yaml
 

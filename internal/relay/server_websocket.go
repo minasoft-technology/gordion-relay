@@ -149,9 +149,14 @@ func (s *WebSocketServer) Stop() {
 func (s *WebSocketServer) setupTLS() error {
 	if s.config.TLS.AutoCert {
 		// Use Let's Encrypt autocert
+		if s.config.TLS.ACMEEmail == "" {
+			return fmt.Errorf("acme_email is required when auto_cert is enabled")
+		}
+
 		m := &autocert.Manager{
 			Cache:  autocert.DirCache("certs"),
 			Prompt: autocert.AcceptTOS,
+			Email:  s.config.TLS.ACMEEmail,
 			HostPolicy: func(ctx context.Context, host string) error {
 				// Allow apex domain and any subdomain
 				if host == s.config.Domain || strings.HasSuffix(host, "."+s.config.Domain) {

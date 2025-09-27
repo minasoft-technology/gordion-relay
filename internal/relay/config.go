@@ -55,9 +55,10 @@ type Config struct {
 
 // TLSConfig holds TLS certificate configuration
 type TLSConfig struct {
-	CertFile string `json:"cert_file"` // Path to certificate file
-	KeyFile  string `json:"key_file"`  // Path to private key file
-	AutoCert bool   `json:"auto_cert"` // Use Let's Encrypt auto-cert
+	CertFile  string `json:"cert_file"`  // Path to certificate file
+	KeyFile   string `json:"key_file"`   // Path to private key file
+	AutoCert  bool   `json:"auto_cert"`  // Use Let's Encrypt auto-cert
+	ACMEEmail string `json:"acme_email"` // Email for Let's Encrypt notifications (required for auto_cert)
 }
 
 // HospitalConfig defines a static hospital mapping

@@ -25,7 +25,8 @@ External User → hospital.domain.com → Relay Server → HTTPS/WebSocket Tunne
   "listen_addr": ":443",
   "domain": "zenpacs.com.tr",
   "tls": {
-    "auto_cert": true
+    "auto_cert": true,
+    "acme_email": "admin@yourdomain.com"
   },
   "idle_timeout": "30s",
   "max_concurrent_conn": 1000,
