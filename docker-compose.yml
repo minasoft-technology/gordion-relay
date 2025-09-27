@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  gordion-relay:
+    build: .
+    ports:
+      - "80:80/tcp"       # HTTP (redirects to HTTPS)
+      - "443:443/udp"     # QUIC (UDP protocol)
+      - "8080:8080/tcp"   # Metrics
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - ./certs:/root/certs
+    environment:
+      - TZ=UTC
+    restart: unless-stopped
+    networks:
+      - relay-network
+
+networks:
+  relay-network:
+    driver: bridge

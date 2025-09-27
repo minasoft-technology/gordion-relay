@@ -1,0 +1,137 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gordion-relay
+  namespace: gordion-relay
+  labels:
+    app: gordion-relay
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gordion-relay
+  template:
+    metadata:
+      labels:
+        app: gordion-relay
+    spec:
+      containers:
+      - name: relay
+        image: gordion-relay:latest
+        ports:
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        - containerPort: 443
+          name: quic
+          protocol: UDP  # QUIC is UDP-only
+        - containerPort: 8080
+          name: metrics
+          protocol: TCP
+        env:
+        - name: TZ
+          value: "UTC"
+        volumeMounts:
+        - name: config
+          mountPath: /root/config.json
+          subPath: config.json
+          readOnly: true
+        - name: certs
+          mountPath: /root/certs
+        resources:
+          limits:
+            cpu: 2000m
+            memory: 1Gi
+          requests:
+            cpu: 200m
+            memory: 256Mi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: config
+        secret:  # Use Secret instead of ConfigMap for tokens
+          secretName: gordion-relay-config
+      - name: certs
+        emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gordion-relay-service
+  namespace: gordion-relay
+  annotations:
+    # For cloud providers - assign specific public IP
+    service.beta.kubernetes.io/load-balancer-source-ranges: "0.0.0.0/0"
+spec:
+  type: LoadBalancer
+  loadBalancerIP: "45.123.45.67"  # Replace with your public IP
+  selector:
+    app: gordion-relay
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+    protocol: TCP
+  - name: quic
+    port: 443
+    targetPort: 443
+    protocol: UDP  # Only UDP for QUIC (no TCP conflict)
+  - name: metrics
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gordion-relay-config
+  namespace: gordion-relay
+type: Opaque
+stringData:
+  config.json: |
+    {
+      "listen_addr": ":443",
+      "domain": "zenpacs.com.tr",
+      "tls": {
+        "auto_cert": true
+      },
+      "hospitals": [
+        {
+          "code": "ankara",
+          "subdomain": "ankara.zenpacs.com.tr",
+          "token": "CHANGE_ME_ANKARA_TOKEN_HERE"
+        },
+        {
+          "code": "istanbul",
+          "subdomain": "istanbul.zenpacs.com.tr",
+          "token": "CHANGE_ME_ISTANBUL_TOKEN_HERE"
+        },
+        {
+          "code": "samsun",
+          "subdomain": "samsun.zenpacs.com.tr",
+          "token": "CHANGE_ME_SAMSUN_TOKEN_HERE"
+        }
+      ],
+      "idle_timeout": "30s",
+      "max_concurrent_conn": 1000,
+      "request_timeout": "30s",
+      "metrics_addr": ":8080"
+    }
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gordion-relay

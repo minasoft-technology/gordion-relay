@@ -1,0 +1,168 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gordion-relay
+  namespace: gordion-relay
+  labels:
+    app: gordion-relay
+    version: v1.0.0
+spec:
+  replicas: 1  # Single instance for now (QUIC connection affinity)
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: gordion-relay
+  template:
+    metadata:
+      labels:
+        app: gordion-relay
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/status"
+    spec:
+      serviceAccountName: gordion-relay-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 2000
+      containers:
+      - name: relay
+        image: gordion-relay:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        - name: quic
+          containerPort: 443
+          protocol: UDP
+        - name: metrics
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: TZ
+          value: "UTC"
+        - name: GORDION_RELAY_LOG_LEVEL
+          value: "info"
+        - name: GORDION_RELAY_LOG_FORMAT
+          value: "json"  # JSON logging for containers
+        # Hospital tokens from Secret
+        - name: ANKARA_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gordion-relay-tokens
+              key: ankara-token
+        - name: ISTANBUL_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gordion-relay-tokens
+              key: istanbul-token
+        - name: SAMSUN_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gordion-relay-tokens
+              key: samsun-token
+        - name: IZMIR_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gordion-relay-tokens
+              key: izmir-token
+        - name: ANTALYA_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gordion-relay-tokens
+              key: antalya-token
+        volumeMounts:
+        - name: config
+          mountPath: /app/config.json
+          subPath: config.json
+          readOnly: true
+        - name: hospitals
+          mountPath: /app/hospitals.json
+          subPath: hospitals.json
+          readOnly: true
+        - name: certs
+          mountPath: /app/certs
+        resources:
+          limits:
+            cpu: 2000m
+            memory: 1Gi
+            ephemeral-storage: 1Gi
+          requests:
+            cpu: 200m
+            memory: 256Mi
+            ephemeral-storage: 100Mi
+        # Liveness probe - checks if server is running
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        # Readiness probe - checks if server can accept traffic
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        # Startup probe - allows slow startup
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 12  # 60 seconds total
+          successThreshold: 1
+        # Graceful shutdown
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 5"]
+        # Security context
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: config
+        configMap:
+          name: gordion-relay-config
+      - name: hospitals
+        secret:
+          secretName: gordion-relay-tokens
+      - name: certs
+        emptyDir: {}
+      # DNS configuration for proper resolution
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gordion-relay-sa
+  namespace: gordion-relay
+  labels:
+    app: gordion-relay
+automountServiceAccountToken: false

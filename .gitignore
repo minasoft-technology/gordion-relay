@@ -1,0 +1,62 @@
+# Binaries
+relay
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Build artifacts
+*.o
+*.a
+
+# Go workspace file
+go.work.sum
+
+# Environment files
+.env
+.env.local
+
+# Configuration with secrets
+config.json
+hospitals.json
+
+# Keep example configs
+!config.example.json
+
+# TLS certificates
+certs/
+*.pem
+*.key
+*.crt
+
+# Kubernetes secrets (NEVER commit real secrets)
+k8s/secret-production.yaml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+/tmp/
+
+# Docker
+.dockerignore
+
+# Test artifacts
+coverage.txt
+coverage.html
+
+# Temporary files
+/test/test-client
+/test/go.sum
