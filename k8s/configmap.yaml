@@ -12,7 +12,7 @@ data:
       "domain": "zenpacs.com.tr",
       "tls": {
         "auto_cert": true,
-        "acme_email": "ops@minasoft.com.tr"
+        "acme_email": "info@minasoft.com.tr"
       },
       "idle_timeout": "30s",
       "max_concurrent_conn": 1000,

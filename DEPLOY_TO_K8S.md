@@ -106,7 +106,7 @@ envsubst < k8s/secret.yaml | kubectl apply -f -
 ```json
 "tls": {
   "auto_cert": true,
-  "acme_email": "ops@minasoft.com.tr"  // ← Change to your email
+  "acme_email": "info@minasoft.com.tr"  // ← Change to your email
 }
 ```
 
