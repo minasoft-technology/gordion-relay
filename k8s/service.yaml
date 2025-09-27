@@ -5,28 +5,16 @@ metadata:
   namespace: gordion-relay
   labels:
     app: gordion-relay
-  annotations:
-    # Preserve source IP for rate limiting
-    service.beta.kubernetes.io/external-traffic: "OnlyLocal"
 spec:
-  type: LoadBalancer
-  externalTrafficPolicy: Local  # Preserve source IP for rate limiting
-  sessionAffinity: ClientIP  # Important for WebSocket connection persistence
+  type: ClusterIP
+  sessionAffinity: ClientIP
   sessionAffinityConfig:
     clientIP:
-      timeoutSeconds: 3600  # 1 hour session affinity
+      timeoutSeconds: 3600
   selector:
     app: gordion-relay
   ports:
   - name: http
-    port: 80
-    targetPort: 80
-    protocol: TCP
-  - name: https
-    port: 443
-    targetPort: 443
-    protocol: TCP  # HTTPS/WebSocket tunnel
-  - name: metrics
     port: 8080
     targetPort: 8080
     protocol: TCP
@@ -46,6 +34,6 @@ spec:
     app: gordion-relay
   ports:
   - name: metrics
-    port: 8080
-    targetPort: 8080
+    port: 9090
+    targetPort: 9090
     protocol: TCP

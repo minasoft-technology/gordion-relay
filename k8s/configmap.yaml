@@ -8,15 +8,14 @@ metadata:
 data:
   config.json: |
     {
-      "listen_addr": ":443",
+      "listen_addr": ":8080",
       "domain": "zenpacs.com.tr",
       "tls": {
-        "auto_cert": true,
-        "acme_email": "info@minasoft.com.tr"
+        "enabled": false
       },
       "idle_timeout": "30s",
       "max_concurrent_conn": 1000,
-      "request_timeout": "30s",
-      "metrics_addr": ":8080"
+      "request_timeout": "5m",
+      "metrics_addr": ":9090"
     }
   # Hospital configuration will be loaded from environment variables (Secret)

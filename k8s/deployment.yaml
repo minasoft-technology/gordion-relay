@@ -34,13 +34,10 @@ spec:
         imagePullPolicy: Always
         ports:
         - name: http
-          containerPort: 80
-          protocol: TCP
-        - name: https
-          containerPort: 443
+          containerPort: 8080
           protocol: TCP
         - name: metrics
-          containerPort: 8080
+          containerPort: 9090
           protocol: TCP
         env:
         - name: TZ
@@ -84,8 +81,6 @@ spec:
           mountPath: /app/hospitals.json
           subPath: hospitals.json
           readOnly: true
-        - name: certs
-          mountPath: /app/certs
         resources:
           limits:
             cpu: 2000m
@@ -99,7 +94,7 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 8080
+            port: 9090
             scheme: HTTP
           initialDelaySeconds: 30
           periodSeconds: 30
@@ -110,7 +105,7 @@ spec:
         readinessProbe:
           httpGet:
             path: /health
-            port: 8080
+            port: 9090
             scheme: HTTP
           initialDelaySeconds: 5
           periodSeconds: 10
@@ -121,7 +116,7 @@ spec:
         startupProbe:
           httpGet:
             path: /health
-            port: 8080
+            port: 9090
             scheme: HTTP
           initialDelaySeconds: 10
           periodSeconds: 5
@@ -143,9 +138,6 @@ spec:
       - name: hospitals
         secret:
           secretName: gordion-relay-tokens
-      - name: certs
-        persistentVolumeClaim:
-          claimName: gordion-relay-certs
       # DNS configuration for proper resolution
       dnsPolicy: ClusterFirst
       restartPolicy: Always
