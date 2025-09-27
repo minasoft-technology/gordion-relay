@@ -5,7 +5,7 @@ services:
     build: .
     ports:
       - "80:80/tcp"       # HTTP (redirects to HTTPS)
-      - "443:443/udp"     # QUIC (UDP protocol)
+      - "443:443/tcp"     # HTTPS/WebSocket tunnel
       - "8080:8080/tcp"   # Metrics
     volumes:
       - ./config.json:/app/config.json:ro

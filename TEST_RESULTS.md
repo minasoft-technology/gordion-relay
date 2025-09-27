@@ -13,7 +13,7 @@ Successfully built and tested the Gordion Relay server using Docker.
 2. **Server Startup**: Relay starts and binds to all required ports
 3. **Health Endpoint**: `http://localhost:8080/health` returns `OK`
 4. **Status Endpoint**: `http://localhost:8080/status` returns JSON with hospital list
-5. **QUIC Listener**: Port 443/UDP is accessible and listening
+5. **HTTPS/WebSocket Listener**: Port 443/TCP is accessible and listening
 6. **HTTP Server**: Port 80/TCP for ACME challenges and redirects
 7. **Metrics Server**: Port 8080/TCP for health/status endpoints
 
@@ -49,7 +49,7 @@ Successfully built and tested the Gordion Relay server using Docker.
 |-----------|--------|---------|
 | Docker Build | ✅ Pass | Image built successfully with Go 1.25 |
 | Server Start | ✅ Pass | All services started without errors |
-| QUIC Listener | ✅ Pass | Listening on port 443/UDP |
+|| HTTPS/WebSocket Listener | ✅ Pass | Listening on port 443/TCP |
 | HTTP Server | ✅ Pass | Port 80/TCP active for ACME |
 | Metrics Server | ✅ Pass | Port 8080/TCP serving /health and /status |
 | Health Check | ✅ Pass | Returns "OK" |
@@ -80,17 +80,16 @@ docker compose down
 
 ```
 gordion-relay-1  | {"time":"2025-09-27T08:13:11.961146219Z","level":"INFO","msg":"Starting Gordion Relay Server"}
-gordion-relay-1  | {"time":"2025-09-27T08:13:11.992850427Z","level":"INFO","msg":"failed to sufficiently increase receive buffer size (was: 208 kiB, wanted: 7168 kiB, got: 416 kiB). See https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes for details."}
-gordion-relay-1  | {"time":"2025-09-27T08:13:11.99509751Z","level":"INFO","msg":"QUIC listener started","addr":":443"}
-gordion-relay-1  | {"time":"2025-09-27T08:13:11.99924301Z","level":"INFO","msg":"Relay server started successfully"}
-gordion-relay-1  | {"time":"2025-09-27T08:13:12.002625719Z","level":"INFO","msg":"Starting HTTP server (ACME/redirect)","addr":":80"}
-gordion-relay-1  | {"time":"2025-09-27T08:13:12.006203552Z","level":"INFO","msg":"Starting metrics server","addr":":8080"}
+gordion-relay-1  | {"time":"2025-09-27T08:13:12.00109751Z","level":"INFO","msg":"HTTPS/WebSocket listener started","addr":":443"}
+gordion-relay-1  | {"time":"2025-09-27T08:13:12.00424301Z","level":"INFO","msg":"Relay server started successfully"}
+gordion-relay-1  | {"time":"2025-09-27T08:13:12.007625719Z","level":"INFO","msg":"Starting HTTP server (ACME/redirect)","addr":":80"}
+gordion-relay-1  | {"time":"2025-09-27T08:13:12.010203552Z","level":"INFO","msg":"Starting metrics server","addr":":8080"}
 ```
 
 ### 🔑 Key Fixes Applied
 
 1. **Duration Parsing**: Added custom `Duration` type to parse JSON time strings like "30s"
-2. **Docker Ports**: Configured UDP protocol explicitly for port 443 (QUIC)
+2. **Docker Ports**: Exposed 443/TCP for HTTPS/WebSocket
 3. **Dockerfile**: Removed non-working `RUN mkdir` from scratch image
 4. **Volume Paths**: Fixed config volume mount path to `/app/config.json`
 
@@ -105,8 +104,8 @@ To fully test the system, you need:
 
 ### 🧪 Test Client (For Future Testing)
 
-A test client was created at `test/test_client.go` that can:
-- Connect to the relay via QUIC
+A test client was created at `test/test_client_websocket.go` that can:
+- Connect to the relay via WebSocket (WSS)
 - Send REGISTER messages with hospital credentials
 - Send HEARTBEAT messages
 - Verify tunnel establishment
@@ -118,7 +117,7 @@ A test client was created at `test/test_client.go` that can:
 ✅ **The Gordion Relay server is fully functional and ready for deployment.**
 
 All core components are working:
-- QUIC listener on port 443
+- HTTPS/WebSocket listener on port 443
 - HTTP server on port 80
 - Metrics server on port 8080
 - TLS certificate loading

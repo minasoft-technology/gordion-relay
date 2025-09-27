@@ -146,7 +146,7 @@ kubectl get svc gordion-relay-service -n gordion-relay -w
 Wait for `EXTERNAL-IP` to appear:
 ```
 NAME                    TYPE           EXTERNAL-IP     PORT(S)
-gordion-relay-service   LoadBalancer   203.0.113.100   80:30080/TCP,443:30443/UDP,8080:30800/TCP
+gordion-relay-service   LoadBalancer   203.0.113.100   80:30080/TCP,443:30443/TCP,8080:30800/TCP
 ```
 
 ### Step 7: Configure DNS
@@ -172,7 +172,7 @@ echo "LoadBalancer IP: $RELAY_IP"
 kubectl logs -n gordion-relay -l app=gordion-relay -f
 
 # Should see:
-# {"level":"INFO","msg":"QUIC listener started","addr":":443"}
+# {"level":"INFO","msg":"HTTPS/WebSocket listener started","addr":":443"}
 # {"level":"INFO","msg":"Relay server started successfully"}
 
 # Test health endpoint

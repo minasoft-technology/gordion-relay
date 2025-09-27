@@ -39,15 +39,15 @@
     └────────────────────────────────────────────────────────────┘
 
     ┌────────────────────────────────────────────────────────────┐
-    │              Port 443 (UDP/QUIC)                            │
+    │              Port 443 (TCP/HTTPS + WebSocket)               │
     │   ┌──────────────────────────────────────────────┐         │
-    │   │  QUIC Listener (Unified Handler)             │         │
+    │   │  HTTPS Server + WebSocket Upgrade            │         │
     │   │                                               │         │
-    │   │  1. Accept QUIC connection                   │         │
-    │   │  2. Read first line of first stream          │         │
-    │   │  3. Detect protocol:                         │         │
-    │   │     • "REGISTER ..." → Tunnel setup          │         │
-    │   │     • "GET ..." → HTTP request               │         │
+    │   │  1. Accept HTTPS connection                  │         │
+    │   │  2. Upgrade /tunnel to WebSocket             │         │
+    │   │  3. Handle protocol:                         │         │
+    │   │     • "REGISTER ..." → WebSocket tunnel      │         │
+    │   │     • Other HTTP → forward via tunnel        │         │
     │   └──────┬─────────────────────┬─────────────────┘         │
     │          │                     │                            │
     │    ┌─────▼──────┐       ┌──────▼─────────┐               │
@@ -155,9 +155,9 @@ Gordionedge                       (45.123.45.67:443)
    │    relay.zenpacs.com.tr            │
    │    → 45.123.45.67                  │
    │                                    │
-   │ 3. Open QUIC Connection            │
-   │    (Outbound - Firewall allows)    │
-   ├─────────── QUIC Dial ────────────>│
+   │ 3. Open WebSocket Connection        │
+   │    (Outbound HTTPS - Firewall allows)│
+   ├──────── wss://relay/tunnel ───────>│
    │    TLS Handshake                   │
    │<──────── TLS Certificate ──────────┤
    │                                    │
@@ -165,11 +165,10 @@ Gordionedge                       (45.123.45.67:443)
    │    Local:  10.1.1.50:52341        │
    │    Remote: 45.123.45.67:443       │
    │                                    │
-   │ 5. Open Registration Stream        │
-   ├────── OpenStreamSync() ──────────>│
+   │ 5. Send Registration               │
    │                                    │
    │ 6. Send Registration               │
-   ├─ "REGISTER ankara ankara.zenpacs.com.tr SECRET123\n" ─>│
+   ├─ "REGISTER ankara ankara.zenpacs.com.tr SECRET123" ───>│
    │                                    │
    │                                    │ 7. Relay Validates
    │                                    │    ✓ Parse fields
@@ -201,7 +200,7 @@ Gordionedge                       (45.123.45.67:443)
    │                                    │───> Update LastSeen
    │                                    │
    │ 13. Listen for Requests            │
-   │     AcceptStream() - blocking      │
+   │     WebSocket messages (non-block) │
    │     Waiting for HTTP requests...   │
    │                                    │
    │                    [TUNNEL ACTIVE] │
@@ -230,7 +229,7 @@ User Browser              Relay Server           Hospital (Ankara)
     │    ankara.zenpacs.com.tr │                        │
     │    → 45.123.45.67       │                        │
     │                          │                        │
-    │ 3. QUIC Connection       │                        │
+    │ 3. HTTPS Connection      │
     ├──── Dial 45.123.45.67:443 ──>│                   │
     │    TLS Handshake         │                        │
     │<──── Certificate ────────┤                        │
@@ -255,9 +254,9 @@ User Browser              Relay Server           Hospital (Ankara)
     │                          │    agents["ankara"]    │
     │                          │    → Found! ✓          │
     │                          │                        │
-    │                          │ 8. Open Tunnel Stream  │
-    │                          ├── OpenStreamSync() ──>│
-    │                          │    (on existing conn)  │
+    │                          │ 8. Forward via WebSocket │
+    │                          ├── Send over WSS ───────>│
+    │                          │    (on existing tunnel) │
     │                          │                        │
     │                          │ 9. Forward Request     │
     │                          ├─ "GET /api/instances/123/download HTTP/1.1" ─>│

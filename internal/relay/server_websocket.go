@@ -362,22 +362,22 @@ func (s *WebSocketServer) handleHTTPRequest(w http.ResponseWriter, r *http.Reque
 
 // extractHospitalCode extracts hospital code from subdomain
 func (s *WebSocketServer) extractHospitalCode(host string) string {
+	// Normalize to lowercase for case-insensitive host matching
+	host = strings.ToLower(host)
+
 	// Remove port if present
 	if colonIndex := strings.Index(host, ":"); colonIndex != -1 {
 		host = host[:colonIndex]
 	}
 
 	// Check if it's a subdomain of our domain
-	domainSuffix := "." + s.config.Domain
+	domainSuffix := "." + strings.ToLower(s.config.Domain)
 	if !strings.HasSuffix(host, domainSuffix) {
 		return ""
 	}
 
-	// Extract subdomain
-	subdomain := strings.TrimSuffix(host, domainSuffix)
-
 	// The subdomain is the hospital code
-	return subdomain
+	return strings.TrimSuffix(host, domainSuffix)
 }
 
 // forwardRequest forwards an HTTP request through the WebSocket tunnel
@@ -509,27 +509,14 @@ func (s *WebSocketServer) startMetricsServer(ctx context.Context) {
 // Rate limiting functions (same as before)
 
 func (s *WebSocketServer) isRateLimited(remoteAddr string) bool {
+	// Read-only check; mutations happen in recordFailedAttempt
 	s.attemptsMutex.RLock()
-	defer s.attemptsMutex.RUnlock()
-
 	attempts, exists := s.failedAttempts[remoteAddr]
+	s.attemptsMutex.RUnlock()
 	if !exists {
 		return false
 	}
-
-	if time.Now().Before(attempts.BlockedUntil) {
-		return true
-	}
-
-	const maxAttempts = 5
-	const blockDuration = 15 * time.Minute
-
-	if attempts.Count >= maxAttempts {
-		attempts.BlockedUntil = time.Now().Add(blockDuration)
-		return true
-	}
-
-	return false
+	return time.Now().Before(attempts.BlockedUntil)
 }
 
 func (s *WebSocketServer) recordFailedAttempt(remoteAddr string) {

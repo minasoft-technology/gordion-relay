@@ -1,6 +1,6 @@
 # Gordion Relay - Hospital DICOM Tunnel System
 
-A high-performance QUIC-based reverse tunnel system that allows hospitals behind firewalls to serve DICOM files through public URLs without requiring inbound firewall rules.
+A WebSocket-based reverse proxy/tunnel relay that enables secure remote access to hospital medical imaging systems (PACS/DICOM) without requiring inbound firewall rules. Uses standard HTTPS/TCP for maximum firewall compatibility with automatic TLS certificates.
 
 ## 🎯 Problem Solved
 
@@ -73,7 +73,7 @@ After deployment, each hospital becomes accessible via:
 
 ### Key Features
 - ✅ **Zero Firewall Changes** - Hospitals only need outbound HTTPS
-- ✅ **QUIC Protocol** - Modern transport with 0-RTT reconnection
+- ✅ **WebSocket over HTTPS** - Works through firewalls and corporate proxies
 - ✅ **Token Authentication** - Secure pre-shared tokens per hospital
 - ✅ **Rate Limiting** - 5 attempts / 15 minute IP blocking
 - ✅ **Auto TLS** - Let's Encrypt wildcard certificates
@@ -127,7 +127,7 @@ export GORDION_TUNNEL_SUBDOMAIN="ankara.zenpacs.com.tr"
 - Protection against brute force attacks
 
 ### Network Security
-- QUIC over TLS 1.3 encryption
+- TLS 1.2+ encryption over HTTPS/WebSocket
 - No inbound ports required at hospitals
 - NetworkPolicy isolation in Kubernetes
 
@@ -140,7 +140,7 @@ export GORDION_TUNNEL_SUBDOMAIN="ankara.zenpacs.com.tr"
 - **Emergency Access** - Instant remote access to studies
 
 ### Technical Features
-- **Zero-downtime updates** - QUIC connection migration
+- **Stable connections** - Persistent WebSocket tunnels
 - **Geographic distribution** - Multiple relay servers
 - **High availability** - Kubernetes native scaling
 - **Monitoring** - Prometheus metrics integration

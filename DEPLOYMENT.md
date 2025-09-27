@@ -1,19 +1,19 @@
 # 🚀 Gordion Relay - Production Deployment Guide
 
-Complete deployment guide for the Gordion Relay QUIC tunnel system.
+Complete deployment guide for the Gordion Relay WebSocket tunnel system.
 
 ## 📋 Pre-Deployment Checklist
 
 ### Infrastructure Requirements
 - [ ] **Kubernetes cluster** (v1.20+) with LoadBalancer support
-- [ ] **UDP LoadBalancer support** (for QUIC protocol)
 - [ ] **DNS control** for wildcard domain (*.zenpacs.com.tr)
 - [ ] **Public IP address** for LoadBalancer
 - [ ] **Docker registry** access (optional - for custom builds)
+- [ ] **StorageClass** for PersistentVolume (for Let's Encrypt cert caching)
 
 ### Network Requirements
 - [ ] **Port 80/TCP** - HTTP redirects and ACME challenges
-- [ ] **Port 443/UDP** - QUIC tunnel and HTTP/3
+- [ ] **Port 443/TCP** - HTTPS/WebSocket tunnel
 - [ ] **Port 8080/TCP** - Metrics and health checks
 - [ ] **Outbound HTTPS** - For Let's Encrypt certificate requests
 

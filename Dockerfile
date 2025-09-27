@@ -44,7 +44,7 @@ WORKDIR /app
 # Note: FROM scratch doesn't have /etc/passwd, so we skip USER directive
 
 # Expose ports
-EXPOSE 80/tcp 443/udp 8080/tcp
+EXPOSE 80/tcp 443/tcp 8080/tcp
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
@@ -60,7 +60,7 @@ CMD ["/app/relay", "-config", "/app/config.json"]
 
 # Metadata
 LABEL org.opencontainers.image.title="Gordion Relay" \
-      org.opencontainers.image.description="QUIC-based reverse tunnel relay for hospital DICOM servers" \
+      org.opencontainers.image.description="WebSocket-based reverse tunnel relay for hospital DICOM servers" \
       org.opencontainers.image.vendor="Minasoft Technology" \
       org.opencontainers.image.version="1.0.0" \
       org.opencontainers.image.licenses="Proprietary" \

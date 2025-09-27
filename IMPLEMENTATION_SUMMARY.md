@@ -1,17 +1,18 @@
-# Implementation Summary: Unified QUIC Relay
+# Implementation Summary: WebSocket Relay
 
 ## ✅ Changes Implemented
 
-### 1. **Unified QUIC Architecture**
-Instead of running separate QUIC and HTTPS servers on port 443, the relay now uses a single QUIC listener that handles:
-- Tunnel registrations from hospitals (custom protocol)
-- Direct HTTP requests (HTTP/3 over QUIC)
+### 1. **WebSocket-Based Architecture**
+The relay uses HTTPS with WebSocket upgrade on port 443 that handles:
+- Tunnel registrations from hospitals (WebSocket protocol)
+- Direct HTTP requests proxied through WebSocket tunnels
 
 **Benefits:**
 - No port conflicts
-- Modern HTTP/3 support
-- Reduced resource usage
+- 100% firewall compatibility (standard HTTPS/TCP)
+- Works through corporate proxies
 - Simpler deployment
+- Universal protocol support
 
 ### 2. **Token-Based Authentication**
 - Pre-shared tokens for each hospital
@@ -71,7 +72,7 @@ export GORDION_TUNNEL_SUBDOMAIN="ankara.zenpacs.com.tr"
                         ▼
         ┌───────────────────────────────┐
         │     Relay Server (VPS)        │
-        │      Port 443 (QUIC)          │
+        │      Port 443 (HTTPS/WSS)     │
         │                               │
         │  ┌─────────────────────────┐  │
         │  │  Connection Handler     │  │
@@ -109,18 +110,19 @@ export GORDION_TUNNEL_SUBDOMAIN="ankara.zenpacs.com.tr"
 ### Protocol Detection
 
 ```go
-// Relay reads first line of QUIC stream
-firstLine := reader.ReadString('\n')
+// HTTPS server routes:
+// - /tunnel: upgrade to WebSocket and handle REGISTER <code> <subdomain> <token>
+// - /: forward HTTP requests over existing WebSocket tunnel
 
-if strings.HasPrefix(firstLine, "REGISTER ") {
-    // It's a tunnel registration
-    // Parse: REGISTER <code> <subdomain> <token>
-    handleTunnelRegistration()
-} else if strings.HasPrefix(firstLine, "GET ") {
-    // It's an HTTP request
-    // Route to appropriate hospital tunnel
-    handleDirectHTTPRequest()
-}
+// In /tunnel handler:
+// 1) Upgrade to WebSocket
+// 2) Read first message: "REGISTER <code> <subdomain> <token>"
+// 3) Authenticate and register agent
+
+// In "/" handler:
+// 1) Extract hospital code from Host
+// 2) Lookup agent WebSocket
+// 3) Forward request and stream response back
 ```
 
 ## 🔒 Security Improvements
@@ -201,7 +203,7 @@ Match: ✓
 - ❌ Conflict!
 
 **After (Unified):**
-- Port 443/UDP: QUIC listener (handles both tunnel and HTTP)
+- Port 443/TCP: HTTPS with WebSocket upgrade (handles both tunnel and HTTP)
 - Port 80/TCP: HTTP redirect + ACME challenges
 - ✅ No conflicts!
 
@@ -212,9 +214,9 @@ spec:
   - name: http
     port: 80
     protocol: TCP
-  - name: quic
+  - name: https
     port: 443
-    protocol: UDP  # ← Single port for everything
+    protocol: TCP  # ← Single port for everything
   - name: metrics
     port: 8080
     protocol: TCP
@@ -314,7 +316,7 @@ curl http://relay:8080/health
 
 ## ⚠️ Important Notes
 
-1. **Port 443 UDP**: Ensure your firewall/load balancer allows UDP on port 443 for QUIC
+1. **Port 443 TCP**: Ensure your firewall/load balancer allows TCP on port 443 for HTTPS/WebSocket
 2. **Tokens**: Keep tokens secret! Use environment variables, not config files in production
 3. **Let's Encrypt**: For wildcard certificates, you may need DNS-01 challenge (not HTTP-01)
 4. **Rate Limiting**: Default is 5 attempts per 15 minutes - adjust if needed

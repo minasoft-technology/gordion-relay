@@ -42,8 +42,8 @@ URL: https://ankara.zenpacs.com.tr/api/instances/123/download
 Location: Cloud provider (AWS, DigitalOcean, etc.)
 IP: Static public IP (e.g., 45.123.45.67)
 Ports:
-  - 80/TCP  (HTTP redirect)
-  - 443/UDP (QUIC - main tunnel)
+  - 80/TCP   (HTTP redirect)
+  - 443/TCP  (HTTPS + WebSocket tunnel)
   - 8080/TCP (metrics)
 Software: gordion-relay binary
 ```
@@ -180,8 +180,8 @@ journalctl -u gordionedge -f | grep -i tunnel
 # Monitor relay logs
 docker logs -f gordion-relay
 
-# Check QUIC connections
-netstat -unp | grep 443
+# Check HTTPS listener (example; adjust per OS)
+netstat -an | grep LISTEN | grep ":443"
 ```
 
 ## 🐛 Troubleshooting
@@ -289,7 +289,7 @@ docker stats gordion-relay
 
 1. **Reverse Tunnel**: Hospital initiates connection (outbound), relay uses same connection to send requests back
 
-2. **QUIC Protocol**: Modern transport protocol over UDP, multiplexed streams, built-in encryption
+2. **WebSocket over HTTPS**: Tunnel uses WSS on TCP 443; firewall and proxy friendly
 
 3. **Token Authentication**: Pre-shared secret prevents unauthorized hospitals from connecting
 
