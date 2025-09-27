@@ -55,6 +55,7 @@ type Config struct {
 
 // TLSConfig holds TLS certificate configuration
 type TLSConfig struct {
+	Enabled   bool   `json:"enabled"`    // Enable TLS (false = assume Ingress/LoadBalancer handles TLS)
 	CertFile  string `json:"cert_file"`  // Path to certificate file
 	KeyFile   string `json:"key_file"`   // Path to private key file
 	AutoCert  bool   `json:"auto_cert"`  // Use Let's Encrypt auto-cert
@@ -98,6 +99,9 @@ func LoadConfig(path string) (*Config, error) {
 	if config.RequestTimeout == 0 {
 		config.RequestTimeout = Duration(5 * time.Minute)
 	}
+
+	// TLS is disabled by default (HTTPProxy/Ingress handles TLS)
+	// Users must explicitly enable it for standalone deployments
 
 	// Load hospitals from environment variables or separate file
 	if err := loadHospitalsFromEnv(&config); err != nil {

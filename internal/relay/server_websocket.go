@@ -97,16 +97,25 @@ func (s *WebSocketServer) Start(ctx context.Context) error {
 		TLSConfig: s.tlsConfig,
 	}
 
-	// Start HTTPS server
+	// Start server (HTTPS or HTTP depending on TLS config)
 	go func() {
-		s.logger.Info("HTTPS/WebSocket listener started", "addr", s.config.ListenAddr)
-		if err := s.server.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
-			s.logger.Error("HTTPS server error", "error", err)
+		if s.tlsConfig != nil {
+			s.logger.Info("HTTPS/WebSocket listener started", "addr", s.config.ListenAddr)
+			if err := s.server.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
+				s.logger.Error("HTTPS server error", "error", err)
+			}
+		} else {
+			s.logger.Info("HTTP/WebSocket listener started (TLS handled by Ingress)", "addr", s.config.ListenAddr)
+			if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				s.logger.Error("HTTP server error", "error", err)
+			}
 		}
 	}()
 
-	// Start HTTP redirect server on port 80 for ACME challenges
-	go s.startHTTPRedirectServer(ctx)
+	// Start HTTP redirect server on port 80 for ACME challenges (only if TLS enabled)
+	if s.config.TLS.Enabled {
+		go s.startHTTPRedirectServer(ctx)
+	}
 
 	// Start metrics server if configured
 	if s.config.MetricsAddr != "" {
@@ -148,6 +157,12 @@ func (s *WebSocketServer) Stop() {
 
 // setupTLS configures TLS certificates
 func (s *WebSocketServer) setupTLS() error {
+	// If TLS is disabled (K8s Ingress handles TLS), skip setup
+	if !s.config.TLS.Enabled {
+		s.logger.Info("TLS disabled - assuming Kubernetes Ingress/LoadBalancer handles TLS termination")
+		return nil
+	}
+
 	if s.config.TLS.AutoCert {
 		// Use Let's Encrypt autocert
 		if s.config.TLS.ACMEEmail == "" {
@@ -174,6 +189,10 @@ func (s *WebSocketServer) setupTLS() error {
 		}
 	} else {
 		// Use provided certificate files
+		if s.config.TLS.CertFile == "" || s.config.TLS.KeyFile == "" {
+			return fmt.Errorf("cert_file and key_file are required when TLS is enabled but auto_cert is false")
+		}
+
 		cert, err := tls.LoadX509KeyPair(s.config.TLS.CertFile, s.config.TLS.KeyFile)
 		if err != nil {
 			return fmt.Errorf("failed to load TLS certificate: %w", err)
