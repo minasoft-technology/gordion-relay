@@ -30,8 +30,7 @@ kubectl apply -f k8s/service.yaml
 # 6. (Optional) Apply network policy
 kubectl apply -f k8s/networkpolicy.yaml
 
-# 7. (Optional) Enable autoscaling
-kubectl apply -f k8s/hpa.yaml
+# Autoscaling disabled - using fixed 2 replicas for datacenter deployment
 ```
 
 ## Step-by-Step Deployment
@@ -196,13 +195,17 @@ curl http://$RELAY_IP:8080/status | jq
 
 ## Optional Components
 
-### Enable Autoscaling
+### Scaling (Fixed at 2 replicas)
 
+The deployment uses a fixed 2 replicas for high availability. Autoscaling is disabled for datacenter environments.
+
+To manually scale:
 ```bash
-kubectl apply -f k8s/hpa.yaml
+# Scale to different number of replicas
+kubectl scale deployment gordion-relay -n gordion-relay --replicas=3
 
 # Verify
-kubectl get hpa -n gordion-relay
+kubectl get pods -n gordion-relay
 ```
 
 ### Apply Network Policy
