@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(kubectl logs:*)",
+      "Bash(curl:*)",
+      "Bash(kubectl get configmap:*)",
+      "Bash(cat:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

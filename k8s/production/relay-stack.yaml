@@ -1,0 +1,466 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflare-api-token-secret
+  namespace: cert-manager
+type: Opaque
+stringData:
+  api-token: "gjPKW-tm5Kkpr9kNinlnugIKYQSP06KB39D6CtXi"
+---
+# DNS01 ClusterIssuer
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: lets-dns01
+spec:
+  acme:
+    email: admin@tederga.com
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: lets-dns01-private-key
+    solvers:
+    - dns01:
+        cloudflare:
+          apiTokenSecretRef:
+            name: cloudflare-api-token-secret
+            key: api-token
+      selector:
+        dnsZones:
+        - "zenpacs.com.tr"
+---
+# External-DNS Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: external-dns
+  labels:
+    name: external-dns
+---
+# External-DNS için Cloudflare API Token Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflare-api-key
+  namespace: external-dns
+type: Opaque
+stringData:
+  apiKey: "gjPKW-tm5Kkpr9kNinlnugIKYQSP06KB39D6CtXi"
+---
+# External-DNS ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: external-dns
+  namespace: external-dns
+---
+# External-DNS ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: external-dns
+rules:
+- apiGroups: [""]
+  resources: ["services", "endpoints", "pods"]
+  verbs: ["get", "watch", "list"]
+- apiGroups: ["extensions", "networking.k8s.io"]
+  resources: ["ingresses"]
+  verbs: ["get", "watch", "list"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["list", "watch"]
+- apiGroups: ["networking.istio.io"]
+  resources: ["gateways", "virtualservices"]
+  verbs: ["get", "watch", "list"]
+- apiGroups: ["projectcontour.io"]
+  resources: ["httpproxies"]
+  verbs: ["get", "watch", "list"]
+---
+# External-DNS ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: external-dns-viewer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: external-dns
+subjects:
+- kind: ServiceAccount
+  name: external-dns
+  namespace: external-dns
+---
+# External-DNS Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: external-dns
+  namespace: external-dns
+spec:
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: external-dns
+  template:
+    metadata:
+      labels:
+        app: external-dns
+    spec:
+      serviceAccountName: external-dns
+      containers:
+      - name: external-dns
+        image: registry.k8s.io/external-dns/external-dns:v0.14.2
+        args:
+        - --source=service
+        - --source=ingress
+        - --source=contour-httpproxy
+        - --domain-filter=zenpacs.com.tr
+        - --provider=cloudflare
+        - --cloudflare-proxied
+        - --cloudflare-dns-records-per-page=5000
+        - --registry=txt
+        - --txt-owner-id=external-dns-zenpacs
+        - --txt-prefix=external-dns-
+        - --policy=sync
+        - --log-format=text
+        - --log-level=info
+        - --interval=1m
+        env:
+        - name: CF_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: cloudflare-api-key
+              key: apiKey
+        resources:
+          limits:
+            memory: 50Mi
+            cpu: 50m
+          requests:
+            memory: 50Mi
+            cpu: 10m
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+---
+# External-DNS Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-dns
+  namespace: external-dns
+  labels:
+    app: external-dns
+spec:
+  selector:
+    app: external-dns
+  ports:
+  - name: http
+    port: 7979
+    targetPort: 7979
+    protocol: TCP
+---
+# Gordion Relay Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gordion-relay
+  labels:
+    name: gordion-relay
+    app.kubernetes.io/name: gordion-relay
+    app.kubernetes.io/part-of: zenpacs-infrastructure
+---
+# Gordion Relay ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gordion-relay-sa
+  namespace: gordion-relay
+  labels:
+    app: gordion-relay
+automountServiceAccountToken: false
+---
+# Gordion Relay ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gordion-relay-config
+  namespace: gordion-relay
+  labels:
+    app: gordion-relay
+data:
+  config.json: |
+    {
+      "listen_addr": ":8080",
+      "domain": "zenpacs.com.tr",
+      "tls": {
+        "enabled": false
+      },
+      "idle_timeout": "30s",
+      "max_concurrent_conn": 1000,
+      "request_timeout": "5m",
+      "metrics_addr": ":9090"
+    }
+---
+# Gordion Relay Secret (Hospital tokens)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gordion-relay-tokens
+  namespace: gordion-relay
+  labels:
+    app: gordion-relay
+type: Opaque
+stringData:
+  ankara-token: "REPLACE_WITH_ANKARA_TOKEN"
+  istanbul-token: "REPLACE_WITH_ISTANBUL_TOKEN"
+  samsun-token: "REPLACE_WITH_SAMSUN_TOKEN"
+  izmir-token: "REPLACE_WITH_IZMIR_TOKEN"
+  antalya-token: "REPLACE_WITH_ANTALYA_TOKEN"
+  hospitals.json: |
+    [
+      {
+        "code": "ankara",
+        "subdomain": "ankara.zenpacs.com.tr",
+        "token": "REPLACE_WITH_ANKARA_TOKEN"
+      },
+      {
+        "code": "istanbul",
+        "subdomain": "istanbul.zenpacs.com.tr",
+        "token": "REPLACE_WITH_ISTANBUL_TOKEN"
+      },
+      {
+        "code": "samsun",
+        "subdomain": "samsun.zenpacs.com.tr",
+        "token": "REPLACE_WITH_SAMSUN_TOKEN"
+      },
+      {
+        "code": "izmir",
+        "subdomain": "izmir.zenpacs.com.tr",
+        "token": "REPLACE_WITH_IZMIR_TOKEN"
+      },
+      {
+        "code": "antalya",
+        "subdomain": "antalya.zenpacs.com.tr",
+        "token": "REPLACE_WITH_ANTALYA_TOKEN"
+      }
+    ]
+---
+# Wildcard Certificate
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gordion-relay-wildcard-cert
+  namespace: gordion-relay
+spec:
+  secretName: gordion-relay-wildcard-tls
+  issuerRef:
+    name: lets-dns01
+    kind: ClusterIssuer
+  dnsNames:
+  - "*.zenpacs.com.tr"
+  - "zenpacs.com.tr"
+---
+# Gordion Relay Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gordion-relay
+  namespace: gordion-relay
+  labels:
+    app: gordion-relay
+    version: v1.0.0
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: gordion-relay
+  template:
+    metadata:
+      labels:
+        app: gordion-relay
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/status"
+    spec:
+      serviceAccountName: gordion-relay-sa
+      securityContext:
+        fsGroup: 2000
+      containers:
+      - name: relay
+        image: ghcr.io/minasoft-technology/gordion-relay:main
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        env:
+        - name: TZ
+          value: "UTC"
+        - name: GORDION_RELAY_LOG_LEVEL
+          value: "info"
+        - name: GORDION_RELAY_LOG_FORMAT
+          value: "json"
+        - name: ANKARA_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gordion-relay-tokens
+              key: ankara-token
+        - name: ISTANBUL_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gordion-relay-tokens
+              key: istanbul-token
+        - name: SAMSUN_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gordion-relay-tokens
+              key: samsun-token
+        - name: IZMIR_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gordion-relay-tokens
+              key: izmir-token
+        - name: ANTALYA_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gordion-relay-tokens
+              key: antalya-token
+        volumeMounts:
+        - name: config
+          mountPath: /app/config.json
+          subPath: config.json
+          readOnly: true
+        - name: hospitals
+          mountPath: /app/hospitals.json
+          subPath: hospitals.json
+          readOnly: true
+        resources:
+          limits:
+            cpu: 2000m
+            memory: 1Gi
+            ephemeral-storage: 1Gi
+          requests:
+            cpu: 200m
+            memory: 256Mi
+            ephemeral-storage: 100Mi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 9090
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 9090
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 9090
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 12
+          successThreshold: 1
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: config
+        configMap:
+          name: gordion-relay-config
+      - name: hospitals
+        secret:
+          secretName: gordion-relay-tokens
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+---
+# Gordion Relay Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: gordion-relay-service
+  namespace: gordion-relay
+  labels:
+    app: gordion-relay
+spec:
+  type: ClusterIP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
+  selector:
+    app: gordion-relay
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+---
+# Gordion Relay Metrics Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: gordion-relay-metrics
+  namespace: gordion-relay
+  labels:
+    app: gordion-relay
+    service-type: metrics
+spec:
+  type: ClusterIP
+  selector:
+    app: gordion-relay
+  ports:
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+---
+# Single HTTPProxy for all subdomains (wildcard)
+apiVersion: projectcontour.io/v1
+kind: HTTPProxy
+metadata:
+  name: gordion-relay-wildcard-httpproxy
+  namespace: gordion-relay
+  labels:
+    app: gordion-relay
+spec:
+  virtualhost:
+    fqdn: "*.zenpacs.com.tr"
+    tls:
+      secretName: gordion-relay-wildcard-tls
+  routes:
+  - services:
+    - name: gordion-relay-service
+      port: 8080
+    timeoutPolicy:
+      response: 30s
+      idle: 60s
+    enableWebsockets: true

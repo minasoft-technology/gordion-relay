@@ -1,0 +1,18 @@
+{
+  "listen_addr": ":8080",
+  "domain": "zenpacs.com.tr",
+  "tls": {
+    "enabled": false
+  },
+  "hospitals": [
+    {
+      "code": "ankara",
+      "subdomain": "ankara.zenpacs.com.tr",
+      "token": "test-ankara-token-12345"
+    }
+  ],
+  "idle_timeout": "30s",
+  "max_concurrent_conn": 1000,
+  "request_timeout": "5m",
+  "metrics_addr": ":9090"
+}

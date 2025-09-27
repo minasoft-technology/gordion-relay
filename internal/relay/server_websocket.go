@@ -356,22 +356,25 @@ func (s *WebSocketServer) agentReadLoop(agent *WSAgentConnection) {
 		close(agent.Done)
 	}()
 	for {
-		_, message, err := agent.Conn.ReadMessage()
+		msgType, message, err := agent.Conn.ReadMessage()
 		if err != nil {
 			s.logger.Debug("Agent connection closed", "hospital", agent.HospitalCode, "error", err)
 			return
 		}
 
-		msg := strings.TrimSpace(string(message))
-		if msg == "HEARTBEAT" {
-			agent.Mutex.Lock()
-			agent.LastSeen = time.Now()
-			agent.Mutex.Unlock()
-			s.logger.Debug("Heartbeat received", "hospital", agent.HospitalCode)
-			continue
+		// Only check for HEARTBEAT in TEXT messages
+		if msgType == websocket.TextMessage {
+			msg := strings.TrimSpace(string(message))
+			if msg == "HEARTBEAT" {
+				agent.Mutex.Lock()
+				agent.LastSeen = time.Now()
+				agent.Mutex.Unlock()
+				s.logger.Debug("Heartbeat received", "hospital", agent.HospitalCode)
+				continue
+			}
 		}
 
-		// forward non-heartbeat message to request handler
+		// Forward all non-heartbeat messages (BINARY messages for HTTP responses, other TEXT messages)
 		if agent.MsgCh != nil {
 			agent.MsgCh <- message
 		}
