@@ -27,12 +27,10 @@ spec:
     spec:
       serviceAccountName: gordion-relay-sa
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
         fsGroup: 2000
       containers:
       - name: relay
-        image: gordion-relay:latest
+        image: ghcr.io/minasoft-technology/gordion-relay:main
         imagePullPolicy: Always
         ports:
         - name: http
@@ -130,17 +128,11 @@ spec:
           timeoutSeconds: 5
           failureThreshold: 12  # 60 seconds total
           successThreshold: 1
-        # Graceful shutdown
-        lifecycle:
-          preStop:
-            exec:
-              command: ["/bin/sh", "-c", "sleep 5"]
-        # Security context
+        # Graceful shutdown handled by SIGTERM (terminationGracePeriodSeconds: 30)
+        # Security context (scratch image - no user/group needed)
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 1000
           capabilities:
             drop:
             - ALL
