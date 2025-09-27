@@ -58,6 +58,11 @@ type WSAgentConnection struct {
 	Conn         *websocket.Conn
 	LastSeen     time.Time
 	Mutex        sync.RWMutex
+
+	// message delivery and request synchronization
+	MsgCh    chan []byte
+	Done     chan struct{}
+	ReqMutex sync.Mutex
 }
 
 // NewWebSocketServer creates a new WebSocket-based relay server
@@ -327,8 +332,13 @@ func (s *WebSocketServer) handleTunnelConnection(w http.ResponseWriter, r *http.
 	// Send success response
 	conn.WriteMessage(websocket.TextMessage, []byte("OK Registered"))
 
-	// Handle messages from agent (heartbeats, etc.)
-	s.handleAgentMessages(agent)
+	// Initialize channels and start single reader loop
+	agent.MsgCh = make(chan []byte, 64)
+	agent.Done = make(chan struct{})
+	go s.agentReadLoop(agent)
+
+	// Block until connection is closed by reader loop
+	<-agent.Done
 
 	// Clean up on disconnect
 	s.agentsMutex.Lock()
@@ -338,8 +348,13 @@ func (s *WebSocketServer) handleTunnelConnection(w http.ResponseWriter, r *http.
 	s.logger.Info("Agent disconnected", "hospital", hospitalCode)
 }
 
-// handleAgentMessages handles control messages from an agent
-func (s *WebSocketServer) handleAgentMessages(agent *WSAgentConnection) {
+// agentReadLoop is the single reader for an agent WebSocket.
+// It updates heartbeats and forwards non-heartbeat messages to MsgCh.
+func (s *WebSocketServer) agentReadLoop(agent *WSAgentConnection) {
+	defer func() {
+		// signal disconnect
+		close(agent.Done)
+	}()
 	for {
 		_, message, err := agent.Conn.ReadMessage()
 		if err != nil {
@@ -353,6 +368,12 @@ func (s *WebSocketServer) handleAgentMessages(agent *WSAgentConnection) {
 			agent.LastSeen = time.Now()
 			agent.Mutex.Unlock()
 			s.logger.Debug("Heartbeat received", "hospital", agent.HospitalCode)
+			continue
+		}
+
+		// forward non-heartbeat message to request handler
+		if agent.MsgCh != nil {
+			agent.MsgCh <- message
 		}
 	}
 }
@@ -414,21 +435,33 @@ func (s *WebSocketServer) extractHospitalCode(host string) string {
 func (s *WebSocketServer) forwardRequest(w http.ResponseWriter, r *http.Request, agent *WSAgentConnection) error {
 	s.logger.Debug("Starting request forwarding")
 
+	// ensure single in-flight request per agent
+	agent.ReqMutex.Lock()
+	defer agent.ReqMutex.Unlock()
+
 	agent.Mutex.RLock()
 	conn := agent.Conn
 	agent.Mutex.RUnlock()
 
 	deadline := time.Now().Add(time.Duration(s.config.RequestTimeout))
-	conn.SetReadDeadline(deadline)
-	conn.SetWriteDeadline(deadline)
+	// only set write deadline; reads are via channel with select timeouts
+	_ = conn.SetWriteDeadline(deadline)
 
 	s.logger.Debug("Set WebSocket deadlines", "timeout", s.config.RequestTimeout)
 
 	// Serialize HTTP request
 	var reqBuf strings.Builder
 	reqBuf.WriteString(fmt.Sprintf("%s %s %s\r\n", r.Method, r.RequestURI, r.Proto))
+	// Include Host header explicitly (Go treats Host specially and may not be in r.Header)
+	if r.Host != "" {
+		reqBuf.WriteString(fmt.Sprintf("Host: %s\r\n", r.Host))
+	}
 	for key, values := range r.Header {
 		for _, value := range values {
+			// Skip any existing Host header to avoid duplicates
+			if strings.ToLower(key) == "host" {
+				continue
+			}
 			reqBuf.WriteString(fmt.Sprintf("%s: %s\r\n", key, value))
 		}
 	}
@@ -454,24 +487,26 @@ func (s *WebSocketServer) forwardRequest(w http.ResponseWriter, r *http.Request,
 		}
 	}
 
-	// Read response headers (first message) - skip heartbeat messages
+	// Read response headers (first message) via message channel, skipping heartbeats
 	s.logger.Debug("Waiting for response headers from agent")
 	var respData []byte
+	timeout := time.Duration(s.config.RequestTimeout)
+	deadlineTimer := time.NewTimer(timeout)
+	defer deadlineTimer.Stop()
 	for {
-		_, data, err := conn.ReadMessage()
-		if err != nil {
-			return fmt.Errorf("failed to read response headers: %w", err)
+		select {
+		case data := <-agent.MsgCh:
+			if string(data) == "HEARTBEAT" {
+				s.logger.Debug("Skipping heartbeat message")
+				continue
+			}
+			respData = data
+			goto HAVE_HEADERS
+		case <-deadlineTimer.C:
+			return fmt.Errorf("failed to read response headers: timeout after %s", timeout.String())
 		}
-
-		// Skip heartbeat messages
-		if string(data) == "HEARTBEAT" {
-			s.logger.Debug("Skipping heartbeat message")
-			continue
-		}
-
-		respData = data
-		break
 	}
+HAVE_HEADERS:
 	s.logger.Debug("Received response headers from agent", "response_size", len(respData))
 
 	// Parse HTTP response headers
@@ -490,34 +525,29 @@ func (s *WebSocketServer) forwardRequest(w http.ResponseWriter, r *http.Request,
 
 	// Stream body chunks to client
 	for {
-		_, chunk, err := conn.ReadMessage()
-		if err != nil {
-			return fmt.Errorf("failed to read chunk: %w", err)
-		}
-
-		// Skip heartbeat messages
-		if string(chunk) == "HEARTBEAT" {
-			s.logger.Debug("Skipping heartbeat message in body")
-			continue
-		}
-
-		// Empty message signals end
-		if len(chunk) == 0 {
-			break
-		}
-
-		// Write chunk to client
-		if _, err := w.Write(chunk); err != nil {
-			return fmt.Errorf("failed to write chunk to client: %w", err)
-		}
-
-		// Flush to ensure progressive download
-		if flusher, ok := w.(http.Flusher); ok {
-			flusher.Flush()
+		select {
+		case chunk := <-agent.MsgCh:
+			// Skip heartbeat messages
+			if string(chunk) == "HEARTBEAT" {
+				s.logger.Debug("Skipping heartbeat message in body")
+				continue
+			}
+			// Empty message signals end
+			if len(chunk) == 0 {
+				return nil
+			}
+			// Write chunk to client
+			if _, err := w.Write(chunk); err != nil {
+				return fmt.Errorf("failed to write chunk to client: %w", err)
+			}
+			// Flush to ensure progressive download
+			if flusher, ok := w.(http.Flusher); ok {
+				flusher.Flush()
+			}
+		case <-time.After(timeout):
+			return fmt.Errorf("failed to read body chunk: timeout after %s", timeout.String())
 		}
 	}
-
-	return nil
 }
 
 func (s *WebSocketServer) getHospitalToken(code, subdomain string) (string, bool) {
