@@ -27,10 +27,7 @@ kubectl apply -f k8s/deployment.yaml
 # 5. Create service (LoadBalancer)
 kubectl apply -f k8s/service.yaml
 
-# 6. (Optional) Apply network policy
-kubectl apply -f k8s/networkpolicy.yaml
-
-# Autoscaling disabled - using fixed 2 replicas for datacenter deployment
+# Done! All essential components deployed
 ```
 
 ## Step-by-Step Deployment
@@ -193,11 +190,9 @@ curl http://$RELAY_IP:8080/status | jq
 }
 ```
 
-## Optional Components
+## Manual Scaling
 
-### Scaling (Fixed at 2 replicas)
-
-The deployment uses a fixed 2 replicas for high availability. Autoscaling is disabled for datacenter environments.
+The deployment uses a fixed 2 replicas for high availability.
 
 To manually scale:
 ```bash
@@ -206,33 +201,6 @@ kubectl scale deployment gordion-relay -n gordion-relay --replicas=3
 
 # Verify
 kubectl get pods -n gordion-relay
-```
-
-### Apply Network Policy
-
-```bash
-kubectl apply -f k8s/networkpolicy.yaml
-
-# Verify
-kubectl get networkpolicy -n gordion-relay
-```
-
-### Enable Pod Disruption Budget
-
-```bash
-kubectl apply -f k8s/poddisruptionbudget.yaml
-
-# Verify
-kubectl get pdb -n gordion-relay
-```
-
-### Enable Prometheus Monitoring
-
-```bash
-kubectl apply -f k8s/servicemonitor.yaml
-
-# Verify (requires Prometheus Operator)
-kubectl get servicemonitor -n gordion-relay
 ```
 
 ## Monitoring
