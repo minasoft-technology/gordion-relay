@@ -89,6 +89,11 @@ func (s *WebSocketServer) Start(ctx context.Context) error {
 	// Create HTTPS server with WebSocket handler
 	mux := http.NewServeMux()
 	mux.HandleFunc("/tunnel", s.handleTunnelConnection)
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "OK")
+	})
+	mux.HandleFunc("/status", s.handleStatus)
 	mux.HandleFunc("/", s.handleHTTPRequest)
 
 	s.server = &http.Server{
@@ -494,6 +499,33 @@ func (s *WebSocketServer) getHospitalToken(code, subdomain string) (string, bool
 	return "", false
 }
 
+// handleStatus returns current relay status (shared by main and metrics server)
+func (s *WebSocketServer) handleStatus(w http.ResponseWriter, r *http.Request) {
+	s.agentsMutex.RLock()
+	defer s.agentsMutex.RUnlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{
+		"connected_hospitals": %d,
+		"hospitals": [`, len(s.agents))
+
+	first := true
+	for hospitalCode, agent := range s.agents {
+		if !first {
+			fmt.Fprintf(w, ",")
+		}
+		fmt.Fprintf(w, `{
+			"code": "%s",
+			"subdomain": "%s",
+			"last_seen": "%s"
+		}`, hospitalCode, agent.Subdomain, agent.LastSeen.Format(time.RFC3339))
+		first = false
+	}
+
+	fmt.Fprintf(w, `]
+	}`)
+}
+
 // startMetricsServer starts a metrics/status server
 func (s *WebSocketServer) startMetricsServer(ctx context.Context) {
 	mux := http.NewServeMux()
@@ -503,31 +535,7 @@ func (s *WebSocketServer) startMetricsServer(ctx context.Context) {
 		fmt.Fprintf(w, "OK")
 	})
 
-	mux.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
-		s.agentsMutex.RLock()
-		defer s.agentsMutex.RUnlock()
-
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{
-			"connected_hospitals": %d,
-			"hospitals": [`, len(s.agents))
-
-		first := true
-		for hospitalCode, agent := range s.agents {
-			if !first {
-				fmt.Fprintf(w, ",")
-			}
-			fmt.Fprintf(w, `{
-				"code": "%s",
-				"subdomain": "%s",
-				"last_seen": "%s"
-			}`, hospitalCode, agent.Subdomain, agent.LastSeen.Format(time.RFC3339))
-			first = false
-		}
-
-		fmt.Fprintf(w, `]
-		}`)
-	})
+	mux.HandleFunc("/status", s.handleStatus)
 
 	server := &http.Server{
 		Addr:    s.config.MetricsAddr,
