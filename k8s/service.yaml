@@ -11,7 +11,7 @@ metadata:
 spec:
   type: LoadBalancer
   externalTrafficPolicy: Local  # Preserve source IP for rate limiting
-  sessionAffinity: ClientIP  # Important for QUIC connection persistence
+  sessionAffinity: ClientIP  # Important for WebSocket connection persistence
   sessionAffinityConfig:
     clientIP:
       timeoutSeconds: 3600  # 1 hour session affinity
