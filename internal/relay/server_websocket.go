@@ -359,6 +359,8 @@ func (s *WebSocketServer) handleAgentMessages(agent *WSAgentConnection) {
 
 // handleHTTPRequest handles incoming HTTP/HTTPS requests and forwards through tunnel
 func (s *WebSocketServer) handleHTTPRequest(w http.ResponseWriter, r *http.Request) {
+	s.logger.Debug("Received HTTP request", "method", r.Method, "path", r.URL.Path, "host", r.Host)
+
 	// Extract hospital code from subdomain
 	hospitalCode := s.extractHospitalCode(r.Host)
 	if hospitalCode == "" {
@@ -379,11 +381,13 @@ func (s *WebSocketServer) handleHTTPRequest(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Forward request through tunnel
+	s.logger.Debug("Forwarding request to agent", "hospital", hospitalCode, "method", r.Method, "path", r.URL.Path)
 	if err := s.forwardRequest(w, r, agent); err != nil {
 		s.logger.Error("Failed to forward request", "error", err, "hospital", hospitalCode)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+	s.logger.Debug("Successfully forwarded request", "hospital", hospitalCode)
 }
 
 // extractHospitalCode extracts hospital code from subdomain
@@ -408,6 +412,8 @@ func (s *WebSocketServer) extractHospitalCode(host string) string {
 
 // forwardRequest forwards an HTTP request through the WebSocket tunnel
 func (s *WebSocketServer) forwardRequest(w http.ResponseWriter, r *http.Request, agent *WSAgentConnection) error {
+	s.logger.Debug("Starting request forwarding")
+
 	agent.Mutex.RLock()
 	conn := agent.Conn
 	agent.Mutex.RUnlock()
@@ -415,6 +421,8 @@ func (s *WebSocketServer) forwardRequest(w http.ResponseWriter, r *http.Request,
 	deadline := time.Now().Add(time.Duration(s.config.RequestTimeout))
 	conn.SetReadDeadline(deadline)
 	conn.SetWriteDeadline(deadline)
+
+	s.logger.Debug("Set WebSocket deadlines", "timeout", s.config.RequestTimeout)
 
 	// Serialize HTTP request
 	var reqBuf strings.Builder
@@ -427,9 +435,11 @@ func (s *WebSocketServer) forwardRequest(w http.ResponseWriter, r *http.Request,
 	reqBuf.WriteString("\r\n")
 
 	// Write request to WebSocket
+	s.logger.Debug("Sending HTTP request to agent", "request_size", len(reqBuf.String()))
 	if err := conn.WriteMessage(websocket.BinaryMessage, []byte(reqBuf.String())); err != nil {
 		return fmt.Errorf("failed to write request: %w", err)
 	}
+	s.logger.Debug("Successfully sent HTTP request to agent")
 
 	// Copy body if present
 	if r.Body != nil {
@@ -445,10 +455,12 @@ func (s *WebSocketServer) forwardRequest(w http.ResponseWriter, r *http.Request,
 	}
 
 	// Read response headers (first message)
+	s.logger.Debug("Waiting for response headers from agent")
 	_, respData, err := conn.ReadMessage()
 	if err != nil {
 		return fmt.Errorf("failed to read response headers: %w", err)
 	}
+	s.logger.Debug("Received response headers from agent", "response_size", len(respData))
 
 	// Parse HTTP response headers
 	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(respData)), r)
