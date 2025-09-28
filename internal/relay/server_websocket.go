@@ -452,43 +452,38 @@ func (s *WebSocketServer) forwardRequest(w http.ResponseWriter, r *http.Request,
 
 	s.logger.Debug("Set WebSocket deadlines", "timeout", s.config.RequestTimeout)
 
-	// Serialize HTTP request
-	var reqBuf strings.Builder
-	reqBuf.WriteString(fmt.Sprintf("%s %s %s\r\n", r.Method, r.RequestURI, r.Proto))
-	// Include Host header explicitly (Go treats Host specially and may not be in r.Header)
+	// Serialize HTTP request (headers + body in a SINGLE message)
+	var reqBuf bytes.Buffer
+
+	fmt.Fprintf(&reqBuf, "%s %s %s\r\n", r.Method, r.RequestURI, r.Proto)
 	if r.Host != "" {
-		reqBuf.WriteString(fmt.Sprintf("Host: %s\r\n", r.Host))
+		fmt.Fprintf(&reqBuf, "Host: %s\r\n", r.Host)
 	}
 	for key, values := range r.Header {
 		for _, value := range values {
-			// Skip any existing Host header to avoid duplicates
 			if strings.ToLower(key) == "host" {
 				continue
 			}
-			reqBuf.WriteString(fmt.Sprintf("%s: %s\r\n", key, value))
+			fmt.Fprintf(&reqBuf, "%s: %s\r\n", key, value)
 		}
 	}
 	reqBuf.WriteString("\r\n")
 
-	// Write request to WebSocket
-	s.logger.Debug("Sending HTTP request to agent", "request_size", len(reqBuf.String()))
-	if err := conn.WriteMessage(websocket.BinaryMessage, []byte(reqBuf.String())); err != nil {
-		return fmt.Errorf("failed to write request: %w", err)
-	}
-	s.logger.Debug("Successfully sent HTTP request to agent")
-
-	// Copy body if present
 	if r.Body != nil {
 		bodyData, err := io.ReadAll(r.Body)
 		if err != nil {
 			return fmt.Errorf("failed to read body: %w", err)
 		}
 		if len(bodyData) > 0 {
-			if err := conn.WriteMessage(websocket.BinaryMessage, bodyData); err != nil {
-				return fmt.Errorf("failed to write body: %w", err)
-			}
+			reqBuf.Write(bodyData)
 		}
 	}
+
+	s.logger.Debug("Sending complete HTTP request to agent", "total_size", reqBuf.Len())
+	if err := conn.WriteMessage(websocket.BinaryMessage, reqBuf.Bytes()); err != nil {
+		return fmt.Errorf("failed to write request: %w", err)
+	}
+	s.logger.Debug("Successfully sent HTTP request to agent")
 
 	// Read response headers (first message) via message channel, skipping heartbeats
 	s.logger.Debug("Waiting for response headers from agent")
