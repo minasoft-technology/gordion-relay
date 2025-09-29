@@ -294,16 +294,7 @@ func (s *WebSocketServer) handleTunnelConnection(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Validate subdomain
-	expectedSubdomain := strings.ToLower(hospitalCode + "." + s.config.Domain)
-	if subdomain != expectedSubdomain {
-		s.logger.Error("Invalid subdomain", "expected", expectedSubdomain, "got", subdomain)
-		s.recordFailedAttempt(remoteIP)
-		conn.WriteMessage(websocket.TextMessage, []byte("ERROR Invalid subdomain"))
-		return
-	}
-
-	// Validate token
+	// Validate subdomain and token against configured hospitals
 	expectedToken, ok := s.getHospitalToken(hospitalCode, subdomain)
 	if !ok || expectedToken == "" || providedToken != expectedToken {
 		s.logger.Error("Invalid token for hospital", "hospital", hospitalCode)
@@ -644,8 +635,8 @@ func (s *WebSocketServer) recordFailedAttempt(remoteAddr string) {
 	attempts.Count++
 	attempts.LastAttempt = time.Now()
 
-	const maxAttempts = 5
-	const blockDuration = 15 * time.Minute
+	const maxAttempts = 100
+	const blockDuration = 5 * time.Minute
 
 	if attempts.Count >= maxAttempts {
 		attempts.BlockedUntil = time.Now().Add(blockDuration)
