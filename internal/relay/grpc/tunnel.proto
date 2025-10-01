@@ -1,0 +1,117 @@
+syntax = "proto3";
+
+package tunnel;
+
+option go_package = "github.com/minasoft-technology/gordionedge/internal/tunnel/grpc";
+
+// TunnelService provides bidirectional streaming for DICOM transfer
+service TunnelService {
+  // Stream establishes persistent bidirectional tunnel
+  // Edge initiates connection, relay sends commands, edge streams data back
+  rpc Stream(stream EdgeMessage) returns (stream RelayMessage);
+}
+
+// EdgeMessage - messages sent FROM edge TO relay
+message EdgeMessage {
+  oneof message {
+    RegisterRequest register = 1;
+    DataResponse data = 2;
+    KeepAlive keepalive = 3;
+    StatusUpdate status = 4;
+  }
+}
+
+// RelayMessage - messages sent FROM relay TO edge
+message RelayMessage {
+  oneof message {
+    RegisterResponse register_ack = 1;
+    FetchCommand command = 2;
+    KeepAlive keepalive = 3;
+  }
+}
+
+// RegisterRequest - edge registers with relay on connection
+message RegisterRequest {
+  string hospital_id = 1;      // e.g., "DEMO_SAMSUN"
+  string edge_server_id = 2;   // e.g., "SAMSUN-001"
+  string version = 3;          // e.g., "0.5.0"
+  string token = 4;            // Authentication token
+}
+
+// RegisterResponse - relay acknowledges registration
+message RegisterResponse {
+  bool success = 1;
+  string message = 2;          // Error message if !success
+  int64 server_time = 3;       // Unix timestamp for clock sync
+}
+
+// FetchCommand - relay requests DICOM instance(s)
+message FetchCommand {
+  string request_id = 1;       // UUID for this request
+  string type = 2;             // "instance", "series", "study"
+
+  // UIDs based on type
+  string instance_uid = 3;
+  string series_uid = 4;
+  string study_uid = 5;
+
+  // Resume support
+  string resume_from = 6;      // Instance UID to resume from (optional)
+}
+
+// DataResponse - edge sends DICOM data
+message DataResponse {
+  string request_id = 1;       // Matches FetchCommand.request_id
+
+  oneof payload {
+    DataStart start = 2;       // First message: metadata
+    DataChunk chunk = 3;       // Data chunk (whole file OR part)
+    DataComplete complete = 4; // Last message: summary
+    DataError error = 5;       // Error occurred
+  }
+}
+
+// DataStart - metadata before sending data
+message DataStart {
+  string instance_uid = 1;
+  int64 file_size = 2;         // Total file size in bytes
+  bool chunked = 3;            // true if file will be sent in chunks
+  int32 chunk_count = 4;       // Number of chunks (if chunked)
+  int32 sequence = 5;          // Sequence in multi-instance response (0-based)
+}
+
+// DataChunk - file data (whole or partial)
+message DataChunk {
+  string instance_uid = 1;
+  bytes data = 2;              // DICOM file bytes (full file OR chunk)
+  int32 chunk_index = 3;       // Chunk number (0-based, 0 if whole file)
+  bool is_last_chunk = 4;      // true if this completes the file
+  int32 sequence = 5;          // Sequence in multi-instance response
+}
+
+// DataComplete - all instances sent successfully
+message DataComplete {
+  int32 instance_count = 1;    // Number of instances sent
+  int64 total_bytes = 2;       // Total bytes transferred
+}
+
+// DataError - error occurred during fetch
+message DataError {
+  string error_code = 1;       // "NOT_FOUND", "IO_ERROR", "TIMEOUT"
+  string error_message = 2;
+  string instance_uid = 3;     // Instance that caused error (if applicable)
+}
+
+// KeepAlive - bidirectional heartbeat
+message KeepAlive {
+  int64 timestamp = 1;         // Unix timestamp
+  int64 sequence = 2;          // Monotonic sequence number
+}
+
+// StatusUpdate - edge reports health/stats (optional)
+message StatusUpdate {
+  int64 timestamp = 1;
+  int64 instances_available = 2;
+  int64 disk_usage_bytes = 3;
+  bool healthy = 4;
+}

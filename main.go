@@ -65,17 +65,33 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create and start relay server (WebSocket-based)
-	server := relay.NewWebSocketServer(cfg, logger)
+	// Create relay server based on mode
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	if err := server.Start(ctx); err != nil {
-		slog.Error("Failed to start relay server", "error", err)
+	var server interface {
+		Start(context.Context) error
+		Stop()
+	}
+
+	switch cfg.Mode {
+	case "grpc":
+		slog.Info("Starting gRPC relay server mode")
+		server = relay.NewGRPCServer(cfg, logger)
+	case "websocket":
+		slog.Info("Starting WebSocket relay server mode")
+		server = relay.NewWebSocketServer(cfg, logger)
+	default:
+		slog.Error("Unknown relay mode", "mode", cfg.Mode)
 		os.Exit(1)
 	}
 
-	slog.Info("Relay server started successfully")
+	if err := server.Start(ctx); err != nil {
+		slog.Error("Failed to start relay server", "error", err, "mode", cfg.Mode)
+		os.Exit(1)
+	}
+
+	slog.Info("Relay server started successfully", "mode", cfg.Mode)
 
 	// Wait for interrupt signal
 	sigChan := make(chan os.Signal, 1)

@@ -32,6 +32,7 @@ func (d Duration) ToDuration() time.Duration {
 // Config holds the relay server configuration
 type Config struct {
 	// Server configuration
+	Mode       string `json:"mode"`        // "websocket" or "grpc" (default: "websocket")
 	ListenAddr string `json:"listen_addr"` // e.g., ":443"
 	Domain     string `json:"domain"`      // e.g., "zenpacs.com.tr"
 
@@ -64,9 +65,10 @@ type TLSConfig struct {
 
 // HospitalConfig defines a static hospital mapping
 type HospitalConfig struct {
-	Code      string `json:"code"`      // e.g., "ankara"
-	Subdomain string `json:"subdomain"` // e.g., "ankara.zenpacs.com.tr"
-	Token     string `json:"token"`     // Pre-shared token for authentication
+	Code       string `json:"code"`        // e.g., "demo-samsun" (subdomain identifier)
+	HospitalID string `json:"hospital_id"` // e.g., "DEMO_SAMSUN" (database hospital ID)
+	Subdomain  string `json:"subdomain"`   // e.g., "demo-samsun.zenpacs.com.tr"
+	Token      string `json:"token"`       // Pre-shared token for authentication and token validation
 }
 
 // NATSConfig holds NATS configuration for dynamic service discovery
@@ -90,6 +92,9 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	// Set defaults
+	if config.Mode == "" {
+		config.Mode = "websocket" // Default to WebSocket for backward compatibility
+	}
 	if config.IdleTimeout == 0 {
 		config.IdleTimeout = Duration(30 * time.Second)
 	}
