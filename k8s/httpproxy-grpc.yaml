@@ -1,0 +1,28 @@
+# HTTPProxy for gRPC mode with HTTP/2 support
+apiVersion: projectcontour.io/v1
+kind: HTTPProxy
+metadata:
+  name: gordion-relay-wildcard-httpproxy
+  namespace: gordion-relay
+  labels:
+    app: gordion-relay
+  annotations:
+    projectcontour.io/websocket-routes: "false"
+spec:
+  virtualhost:
+    fqdn: "*.zenpacs.com.tr"
+    tls:
+      secretName: gordion-relay-wildcard-tls
+      minimumProtocolVersion: "1.2"
+  routes:
+  - conditions:
+    - prefix: /
+    services:
+    - name: gordion-relay-service
+      port: 8080
+      protocol: h2c  # HTTP/2 cleartext to backend (gRPC requires HTTP/2)
+    timeoutPolicy:
+      response: 5m   # Increased for large DICOM file transfers
+      idle: 15m      # Increased for long-lived gRPC streams
+    enableWebsockets: false
+    permitInsecure: true  # TLS terminates at ingress, backend is HTTP

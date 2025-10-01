@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gordion-relay-service
+  namespace: gordion-relay
+  labels:
+    app: gordion-relay
+  annotations:
+    service.beta.kubernetes.io/backend-protocol: "h2c"
+spec:
+  type: ClusterIP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600  # Long timeout for persistent gRPC streams
+  selector:
+    app: gordion-relay
+  ports:
+  - name: grpc
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+    appProtocol: grpc  # Kubernetes 1.20+
+---
+# Internal service for metrics scraping
+apiVersion: v1
+kind: Service
+metadata:
+  name: gordion-relay-metrics
+  namespace: gordion-relay
+  labels:
+    app: gordion-relay
+    service-type: metrics
+spec:
+  type: ClusterIP
+  selector:
+    app: gordion-relay
+  ports:
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP

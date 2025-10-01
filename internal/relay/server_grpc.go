@@ -309,7 +309,9 @@ func (s *GRPCServer) findHospitalBySubdomain(subdomain string) *HospitalConfig {
 // startHTTPServer starts the HTTP server for viewer DICOM requests
 func (s *GRPCServer) startHTTPServer(ctx context.Context) error {
 	mux := http.NewServeMux()
+	// Support both /instances/ and /api/instances/ paths for compatibility
 	mux.HandleFunc("/instances/", s.handleInstanceDownload)
+	mux.HandleFunc("/api/instances/", s.handleInstanceDownload)
 	mux.HandleFunc("/health", s.handleHealth)
 
 	httpAddr := ":8080" // HTTP on different port (Ingress handles TLS)
@@ -509,13 +511,23 @@ func (s *GRPCServer) extractSubdomain(host string) string {
 	return ""
 }
 
-// extractInstanceUID extracts instance UID from path like /instances/{uid}/download
+// extractInstanceUID extracts instance UID from various path formats
 func (s *GRPCServer) extractInstanceUID(path string) string {
-	// Path format: /instances/{uid}/download
+	// Supported formats:
+	// - /instances/{uid}/download or /instances/{uid}
+	// - /api/instances/{uid}/download or /api/instances/{uid}
 	parts := strings.Split(strings.Trim(path, "/"), "/")
+
+	// /api/instances/{uid}/download
+	if len(parts) >= 3 && parts[0] == "api" && parts[1] == "instances" {
+		return parts[2]
+	}
+
+	// /instances/{uid}/download
 	if len(parts) >= 2 && parts[0] == "instances" {
 		return parts[1]
 	}
+
 	return ""
 }
 

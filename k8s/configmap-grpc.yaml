@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gordion-relay-config
+  namespace: gordion-relay
+  labels:
+    app: gordion-relay
+data:
+  config.json: |
+    {
+      "mode": "grpc",
+      "listen_addr": ":8080",
+      "domain": "zenpacs.com.tr",
+      "tls": {
+        "enabled": false
+      },
+      "idle_timeout": "30s",
+      "max_concurrent_conn": 1000,
+      "request_timeout": "5m",
+      "metrics_addr": ":9090"
+    }
+  # Hospital configuration will be loaded from environment variables (Secret)
